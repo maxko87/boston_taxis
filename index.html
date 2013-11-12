@@ -1,0 +1,151 @@
+<html>
+  <head>
+    <meta name="viewport" content="initial-scale=1.0, user-scalable=no"/>
+    <script type="text/javascript" src="http://maps.google.com/maps/api/js?sensor=true"></script>
+    <script type="text/javascript" src="http://mbostock.github.com/d3/d3.js?1.29.1"></script>
+    <style type="text/css">
+
+html, body, #map {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.stations, .stations svg {
+  position: absolute;
+}
+
+.stations svg {
+  width: 60px;
+  height: 20px;
+  padding-right: 100px;
+  font: 10px sans-serif;
+}
+
+.stations circle {
+  fill: brown;
+  stroke: black;
+  stroke-width: 1.5px;
+}
+
+#timer {
+  color: blue;
+  float: left;
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  font-size: 40px;
+  z-index: 1;
+}
+
+    </style>
+  </head>
+  <body>
+    <div id="outer">
+      <div id="timer"></div>
+      <div id="map"></div>
+    </div>
+    <script type="text/javascript">
+
+function sortByKey(array, key) {
+    return array.sort(function(a, b) {
+        var x = a[key]; var y = b[key];
+        return ((x < y) ? -1 : ((x > y) ? 1 : 0));
+    });
+}
+
+// Create the Google Map
+var map = new google.maps.Map(d3.select("#map").node(), {
+  zoom: 13,
+  center: new google.maps.LatLng(42.3584300, -71.061667),
+  mapTypeId: google.maps.MapTypeId.TERRAIN
+});
+
+// Load the station data. When the data comes back, create an overlay.
+
+d3.csv('../pickups_train_20000.csv', function(raw_data) {
+  array_data = raw_data.map( function(d) {
+    return [ d["datetime"], d["lat"], d["long"] ]
+  });
+
+  sortByKey(array_data, 0)
+
+  data_sample = array_data.slice(0,100)
+  var overlay = new google.maps.OverlayView();
+
+  // Add the container when the overlay is added to the map.
+  overlay.onAdd = function() {
+    var layer = d3.select(this.getPanes().overlayLayer).append("div")
+        .attr("class", "stations");
+
+      var projection = this.getProjection(),
+          padding = 10;
+
+      var marker = layer.selectAll("svg")
+          .data(d3.entries(data_sample))
+          .each(transform); // update existing markers
+      
+      marker.enter()
+          .append("svg:svg")
+          .each(transform)
+          .attr("class", "marker");
+
+      marker.exit()
+          .remove();
+
+      // Add a circle.
+      marker.append("svg:circle")
+          .attr("r", 4.5)
+          .attr("cx", padding)
+          .attr("cy", padding);
+
+      function transform(d) {
+        d = new google.maps.LatLng(d.value[2], d.value[1]);
+        d = projection.fromLatLngToDivPixel(d);
+        return d3.select(this)
+            .style("left", (d.x - padding) + "px")
+            .style("top", (d.y - padding) + "px");
+      }
+
+    overlay.draw = function() {
+      console.log(data_sample.length);
+
+      var marker = layer.selectAll("svg")
+          .data(d3.entries(data_sample))
+          .each(transform);
+    }
+  }
+
+  overlay.setMap(map);
+
+  i = 0;
+  time = new Date(data_sample[i][0]);
+  minute = 1000*60*1;
+
+  intervalId = window.setInterval(function() {
+    // data_sample = array_data.slice(i, i+40);
+    // i+=1;
+    time = new Date(time.getTime() + minute);
+    new_elems = []
+    while (time > new Date(array_data[i][0])) {
+      new_elems.push(array_data[i]);
+      i+=1;
+    }
+    data_sample = new_elems.concat(data_sample);
+    // remove old points
+    // for (j=0; j<data_sample.length; j++){
+    //   if (new Date(data_sample[j][0]) > new Date(time.getMilliseconds() - minute*30)){
+    //     data_sample.splice(1, data_sample.length);
+    //   }
+    // }
+    document.getElementById('timer').innerText = time;
+    overlay.draw();
+  }, 20);
+
+
+});
+
+    </script>
+  </body>
+</html>
